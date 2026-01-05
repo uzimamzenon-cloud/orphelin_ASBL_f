@@ -413,36 +413,13 @@ function handleNewsletterSubmit(e, input, btn) {
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         btn.disabled = true;
         
-        // Envoi réel à Django
-        const csrfToken = getCSRFToken();
-        const formData = new FormData();
-        formData.append('email', email);
-        formData.append('csrfmiddlewaretoken', csrfToken);
-        
-        fetch('/newsletter/abonnement/', { // Remplace par ton URL Django
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast(`Merci de vous être inscrit à notre newsletter avec l'adresse: ${email}`, 'success');
-                input.value = '';
-            } else {
-                showToast(data.message || 'Erreur lors de l\'inscription.', 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Erreur:', error);
-            showToast('Erreur de connexion au serveur.', 'error');
-        })
-        .finally(() => {
+        // Simulation pour le moment
+        setTimeout(() => {
+            showToast(`Merci de vous être inscrit à notre newsletter avec l'adresse: ${email}`, 'success');
+            input.value = '';
             btn.innerHTML = originalText;
             btn.disabled = false;
-        });
+        }, 1000);
     } else {
         showToast('Veuillez entrer une adresse email valide.', 'error');
     }
@@ -450,8 +427,8 @@ function handleNewsletterSubmit(e, input, btn) {
 
 function handleOutsideClick(e) {
     // Mobile menu
-    const isMobileMenu = window.innerWidth <= 992;
-    if (isMobileMenu && navMenu && mobileMenuBtn && 
+    const isMobile = window.innerWidth <= 992;
+    if (isMobile && navMenu && mobileMenuBtn && 
         !navMenu.contains(e.target) && !mobileMenuBtn.contains(e.target)) {
         navMenu.classList.remove('active');
         mobileMenuBtn.querySelector('i').className = 'fas fa-bars';
@@ -1254,7 +1231,7 @@ function optimizeImpactFormForMobile(form) {
 }
 
 // =====================================================================
-// FONCTIONS POUR LES FORMULAIRES - CORRIGÉES POUR ENVOYER À DJANGO
+// FONCTIONS POUR LES FORMULAIRES - VERSION SIMPLIFIÉE
 // =====================================================================
 function initForms() {
     initContactForm();
@@ -1269,50 +1246,60 @@ function initContactForm() {
     contactForm.addEventListener('submit', async function(e) {
         e.preventDefault();
         
-        // Récupérer les données du formulaire
-        const formData = new FormData(contactForm);
-        const csrfToken = getCSRFToken();
+        const data = {
+            nom: document.getElementById('name')?.value,
+            email: document.getElementById('email')?.value,
+            sujet: document.getElementById('subject')?.value,
+            motif: document.getElementById('reason')?.value,
+            message: document.getElementById('message')?.value
+        };
         
-        // Validation
-        const name = document.getElementById('name')?.value.trim();
-        const email = document.getElementById('email')?.value.trim();
-        const message = document.getElementById('message')?.value.trim();
-        
-        if (!name || !email || !message) {
+        if (!data.nom || !data.email || !data.message) {
             showToast('Veuillez remplir tous les champs obligatoires.', 'error');
             return;
         }
         
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
+        if (!emailRegex.test(data.email)) {
             showToast('Veuillez entrer une adresse email valide.', 'error');
             return;
         }
         
         const submitBtn = contactForm.querySelector('button[type="submit"]');
         const originalText = submitBtn.innerHTML;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Envoi vers Django...';
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Envoi en cours...';
         submitBtn.disabled = true;
         
         try {
-            // Envoi réel à Django
+            // Solution temporaire : simulation d'envoi
+            // Remplace ce setTimeout par un vrai fetch() quand ta vue Django sera prête
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            showToast(`Merci ${data.nom}, votre message a bien été enregistré ! Nous vous répondrons dans les plus brefs délais.`, 'success');
+            contactForm.reset();
+            
+            // Pour l'envoi réel à Django, décommente ce code :
+            /*
+            const csrfToken = getCSRFToken();
             const response = await fetch('/envoyer-contact/', {
                 method: 'POST',
-                body: formData,
                 headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
                     'X-CSRFToken': csrfToken,
                     'X-Requested-With': 'XMLHttpRequest'
-                }
+                },
+                body: new URLSearchParams(data)
             });
             
             const result = await response.json();
             
             if (response.ok && result.success) {
-                showToast(`Merci ${name}, votre message a bien été enregistré dans la base de données !`, 'success');
+                showToast(`Merci ${data.nom}, votre message a bien été enregistré !`, 'success');
                 contactForm.reset();
             } else {
-                showToast(result.message || 'Erreur lors de l\'envoi du message.', 'error');
+                showToast(result.message || 'Erreur lors de l\'envoi.', 'error');
             }
+            */
         } catch (error) {
             console.error('Erreur d\'envoi du formulaire:', error);
             showToast('Erreur de connexion au serveur. Veuillez réessayer plus tard.', 'error');
@@ -1322,7 +1309,6 @@ function initContactForm() {
         }
     });
     
-    // Optimisation mobile
     if (isMobile) {
         const inputs = contactForm.querySelectorAll('input, textarea, select');
         inputs.forEach(input => {
