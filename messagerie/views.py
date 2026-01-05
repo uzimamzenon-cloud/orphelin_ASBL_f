@@ -1,14 +1,16 @@
 from django.shortcuts import render
 from django.http import JsonResponse
 from .models import MessageContact
+from django.core.mail import send_mail
+from django.conf import settings # Utiliser django.conf est plus propre
 from django.views.decorators.csrf import csrf_exempt
 import json
 
-# 1. Affiche le site
+# 1. Affiche le site (page d'accueil)
 def page_accueil(request):
     return render(request, 'index.html')
 
-# 2. Reçoit et Stocke les informations
+# 2. Reçoit, Stocke les informations et envoie un Email
 @csrf_exempt
 def enregistrer_message(request):
     if request.method == 'POST':
@@ -16,12 +18,10 @@ def enregistrer_message(request):
             # On transforme le JSON reçu en dictionnaire Python
             donnees = json.loads(request.body)
             
-            # --- ZONE DE DÉBOGAGE : Regarde ton terminal Django quand tu cliques ---
-            print("Données reçues par le serveur :", donnees) 
+            # --- DEBUG : Affiche dans ton terminal pour vérification ---
+            print("Données reçues par Zenon :", donnees) 
 
-            # Extraction et Stockage dans la Base de Données
-            # On vérifie bien que les noms entre parenthèses '...' 
-            # correspondent à ce que ton JavaScript envoie !
+            # A. STOCKAGE DANS LA BASE DE DONNÉES (db.sqlite3)
             nouveau_message = MessageContact.objects.create(
                 nom=donnees.get('nom'),
                 email=donnees.get('email'),
@@ -29,22 +29,50 @@ def enregistrer_message(request):
                 motif=donnees.get('motif'),
                 message=donnees.get('message')
             )
-            
-            # Sauvegarde forcée (facultatif avec .create() mais rassurant pour un débutant)
             nouveau_message.save()
 
-            print(f"Succès ! Message de {nouveau_message.nom} enregistré sous l'ID {nouveau_message.id}")
+            print(f"Étape 1 : Message de {nouveau_message.nom} enregistré en base.")
+
+            # B. ENVOI DU GMAIL DE NOTIFICATION (Le lien avec ton Gmail)
+            sujet_alerte = f"SITE ASBL : Nouveau message de {donnees.get('nom')}"
+            
+            corps_du_mail = f"""
+            Bonjour Zenon,
+            
+            Une nouvelle personne a contacté l'ASBL via le site :
+            
+            - Nom complet : {donnees.get('nom')}
+            - Son Email : {donnees.get('email')}
+            - Sujet : {donnees.get('sujet')}
+            - Motif : {donnees.get('motif')}
+            
+            --- MESSAGE : ---
+            {donnees.get('message')}
+            
+            ------------------
+            Ce message est également enregistré dans ton tableau de bord Django.
+            """
+
+            send_mail(
+                sujet_alerte,
+                corps_du_mail,
+                settings.EMAIL_HOST_USER,  # L'expéditeur (ton compte Gmail)
+                ['uzimamzenon@gmail.com'], # Le destinataire (ton Gmail personnel)
+                fail_silently=False,      # Affiche l'erreur si le mail ne part pas
+            )
+            
+            print(f"Étape 2 : Email envoyé à {settings.EMAIL_HOST_USER}.")
 
             return JsonResponse({
                 "status": "success",
-                "message": "Félicitations Zenon, le message a été stocké avec succès !"
+                "message": "Félicitations Zenon, c'est enregistré et vous avez reçu un mail !"
             }, status=201)
 
         except Exception as e:
-            print("ERREUR LORS DE L'ENREGISTREMENT :", str(e))
+            print("ERREUR RENCONTRÉE :", str(e))
             return JsonResponse({
                 "status": "error",
                 "message": f"Désolé Zenon, ça a échoué : {str(e)}"
             }, status=400)
             
-    return JsonResponse({"message": "Seules les requêtes POST sont acceptées"}, status=405)
+    return JsonResponse({"message": "Erreur : Seule la méthode POST est autorisée"}, status=405)

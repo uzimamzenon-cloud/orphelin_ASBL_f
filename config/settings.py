@@ -93,4 +93,20 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # --- CONFIGURATION CORS ---
 # Comme tu as un frontend, ceci autorise ton code frontend à parler au backend
-CORS_ALLOW_ALL_ORIGINS = True # Pour le développement local seulement
+CORS_ALLOW_ALL_ORIGINS = True 
+# Pour le développement local seulement
+
+# --- CONFIGURATION EMAIL (GMAIL) ---
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'uzimamzenon@gmail.com' # Ton Gmail
+#EMAIL_HOST_USER = 'uzimamzenon@gmail.com'
+#EMAIL_HOST_PASSWORD = '' # SANS les espaces
+
+# ICI : Colle les 16 lettres (SANS les espaces)
+EMAIL_HOST_PASSWORD = 'dktj wksi qcpk lewn ' 
+
+# L'email qui envoie (le même que celui du dessus)
+DEFAULT_FROM_EMAIL = 'uzimamzenon@gmail.com'
