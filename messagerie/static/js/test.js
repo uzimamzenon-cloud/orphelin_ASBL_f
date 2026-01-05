@@ -57,6 +57,28 @@ let touchStartX = 0;
 let touchEndX = 0;
 
 // =====================================================================
+// FONCTIONS UTILITAIRES POUR CSRF TOKEN
+// =====================================================================
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function getCSRFToken() {
+    return getCookie('csrftoken');
+}
+
+// =====================================================================
 // INITIALISATION - Attendre que le DOM soit chargé
 // =====================================================================
 document.addEventListener('DOMContentLoaded', function() {
@@ -391,12 +413,36 @@ function handleNewsletterSubmit(e, input, btn) {
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         btn.disabled = true;
         
-        setTimeout(() => {
-            showToast(`Merci de vous être inscrit à notre newsletter avec l'adresse: ${email}`, 'success');
-            input.value = '';
+        // Envoi réel à Django
+        const csrfToken = getCSRFToken();
+        const formData = new FormData();
+        formData.append('email', email);
+        formData.append('csrfmiddlewaretoken', csrfToken);
+        
+        fetch('/newsletter/abonnement/', { // Remplace par ton URL Django
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast(`Merci de vous être inscrit à notre newsletter avec l'adresse: ${email}`, 'success');
+                input.value = '';
+            } else {
+                showToast(data.message || 'Erreur lors de l\'inscription.', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            showToast('Erreur de connexion au serveur.', 'error');
+        })
+        .finally(() => {
             btn.innerHTML = originalText;
             btn.disabled = false;
-        }, 1000);
+        });
     } else {
         showToast('Veuillez entrer une adresse email valide.', 'error');
     }
@@ -404,8 +450,8 @@ function handleNewsletterSubmit(e, input, btn) {
 
 function handleOutsideClick(e) {
     // Mobile menu
-    const isMobile = window.innerWidth <= 992;
-    if (isMobile && navMenu && mobileMenuBtn && 
+    const isMobileMenu = window.innerWidth <= 992;
+    if (isMobileMenu && navMenu && mobileMenuBtn && 
         !navMenu.contains(e.target) && !mobileMenuBtn.contains(e.target)) {
         navMenu.classList.remove('active');
         mobileMenuBtn.querySelector('i').className = 'fas fa-bars';
@@ -1208,7 +1254,7 @@ function optimizeImpactFormForMobile(form) {
 }
 
 // =====================================================================
-// FONCTIONS POUR LES FORMULAIRES
+// FONCTIONS POUR LES FORMULAIRES - CORRIGÉES POUR ENVOYER À DJANGO
 // =====================================================================
 function initForms() {
     initContactForm();
@@ -1223,38 +1269,60 @@ function initContactForm() {
     contactForm.addEventListener('submit', async function(e) {
         e.preventDefault();
         
-        const data = {
-            nom: document.getElementById('name')?.value,
-            email: document.getElementById('email')?.value,
-            sujet: document.getElementById('subject')?.value,
-            motif: document.getElementById('reason')?.value,
-            message: document.getElementById('message')?.value
-        };
+        // Récupérer les données du formulaire
+        const formData = new FormData(contactForm);
+        const csrfToken = getCSRFToken();
         
-        if (!data.nom || !data.email || !data.message) {
+        // Validation
+        const name = document.getElementById('name')?.value.trim();
+        const email = document.getElementById('email')?.value.trim();
+        const message = document.getElementById('message')?.value.trim();
+        
+        if (!name || !email || !message) {
             showToast('Veuillez remplir tous les champs obligatoires.', 'error');
             return;
         }
         
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(data.email)) {
+        if (!emailRegex.test(email)) {
             showToast('Veuillez entrer une adresse email valide.', 'error');
             return;
         }
         
         const submitBtn = contactForm.querySelector('button[type="submit"]');
         const originalText = submitBtn.innerHTML;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Envoi en cours...';
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Envoi vers Django...';
         submitBtn.disabled = true;
         
-        setTimeout(() => {
-            showToast(`Merci ${data.nom}, votre message a bien été enregistré ! Nous vous répondrons dans les plus brefs délais.`, 'success');
-            contactForm.reset();
+        try {
+            // Envoi réel à Django
+            const response = await fetch('/envoyer-contact/', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+                showToast(`Merci ${name}, votre message a bien été enregistré dans la base de données !`, 'success');
+                contactForm.reset();
+            } else {
+                showToast(result.message || 'Erreur lors de l\'envoi du message.', 'error');
+            }
+        } catch (error) {
+            console.error('Erreur d\'envoi du formulaire:', error);
+            showToast('Erreur de connexion au serveur. Veuillez réessayer plus tard.', 'error');
+        } finally {
             submitBtn.innerHTML = originalText;
             submitBtn.disabled = false;
-        }, 1500);
+        }
     });
     
+    // Optimisation mobile
     if (isMobile) {
         const inputs = contactForm.querySelectorAll('input, textarea, select');
         inputs.forEach(input => {
