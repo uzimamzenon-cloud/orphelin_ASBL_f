@@ -72,7 +72,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialiser les carousels
     initCarousel();
     initAboutCarousel();
-    initTeamImages();
+    
+    // Initialiser les images d'équipe (avec délai pour éviter le bug)
+    setTimeout(initTeamImages, 500);
 
     // Initialiser la section "À propos de nous"
     initAboutSection();
@@ -248,7 +250,7 @@ function handleWindowLoad() {
         startAboutCarousel();
         
         // Optimiser les images après chargement complet
-        setTimeout(optimizeTeamImages, 100);
+        setTimeout(optimizeTeamImages, 500);
     }, 1000);
 }
 
@@ -445,7 +447,7 @@ function handleResize() {
         document.body.style.overflow = '';
     }
     
-    // Ré-optimiser les images d'équipe
+    // Ré-optimiser les images d'équipe (sans délai pour réactivité)
     optimizeTeamImages();
     
     // Ré-optimiser le formulaire d'impact pour mobile
@@ -535,6 +537,13 @@ function renderCarousel() {
         img.src = image.url;
         img.alt = image.title;
         img.loading = 'lazy';
+        img.style.opacity = '0';
+        img.style.transition = 'opacity 0.5s ease';
+        
+        img.onload = function() {
+            this.style.opacity = '1';
+        };
+        
         img.onerror = function() {
             this.style.display = 'none';
             const placeholder = document.createElement('div');
@@ -769,6 +778,12 @@ function renderAboutCarousel() {
         img.src = imageUrl;
         img.alt = `Image ${index + 1} de la section À propos`;
         img.loading = 'lazy';
+        img.style.opacity = '0';
+        img.style.transition = 'opacity 0.5s ease';
+        
+        img.onload = function() {
+            this.style.opacity = '1';
+        };
         
         img.onerror = function() {
             this.style.display = 'none';
@@ -879,30 +894,61 @@ function setupAboutCarouselEvents() {
 }
 
 // =====================================================================
-// FONCTIONS POUR LES IMAGES D'ÉQUIPE - CORRIGÉES (CARRÉS ARRONDIS)
+// FONCTIONS POUR LES IMAGES D'ÉQUIPE - CORRIGÉES POUR ÉVITER LA DISPARITION
 // =====================================================================
 function initTeamImages() {
+    console.log('Initialisation des images d\'équipe...');
+    
     // Attacher les événements aux images d'équipe
     const teamImages = document.querySelectorAll('.team-img');
-    teamImages.forEach(img => {
-        img.addEventListener('load', handleTeamImageLoad);
-        img.addEventListener('error', handleTeamImageError);
+    console.log(`Nombre d'images d'équipe trouvées: ${teamImages.length}`);
+    
+    teamImages.forEach((img, index) => {
+        console.log(`Image ${index}: ${img.src}`);
         
+        // Réinitialiser l'opacité pour éviter la disparition
+        img.style.opacity = '0.5'; // Opacité temporaire pendant le chargement
+        img.style.transition = 'opacity 0.5s ease';
+        
+        img.addEventListener('load', function() {
+            console.log(`Image ${index} chargée: ${this.src}`);
+            handleTeamImageLoad.call(this);
+        });
+        
+        img.addEventListener('error', function() {
+            console.error(`Erreur de chargement image ${index}: ${this.src}`);
+            handleTeamImageError.call(this);
+        });
+        
+        // Si l'image est déjà chargée, déclencher manuellement
         if (img.complete) {
-            handleTeamImageLoad.call(img);
+            console.log(`Image ${index} déjà complète`);
+            if (img.naturalHeight > 0) {
+                handleTeamImageLoad.call(img);
+            } else {
+                handleTeamImageError.call(img);
+            }
         }
     });
     
-    // Optimiser les images d'équipe
-    optimizeTeamImages();
+    // Optimiser les images d'équipe (avec un léger délai pour laisser le temps au DOM)
+    setTimeout(() => {
+        console.log('Optimisation des images d\'équipe...');
+        optimizeTeamImages();
+    }, 200);
 }
 
 function handleTeamImageLoad() {
+    console.log('handleTeamImageLoad appelé pour:', this.src);
+    
+    // Toujours s'assurer que l'image reste visible
+    this.style.opacity = '1';
     this.classList.add('loaded');
     
     const container = this.closest('.team-img-container');
     if (container) {
         container.classList.add('loaded');
+        container.style.opacity = '1';
     }
 }
 
@@ -920,81 +966,120 @@ function handleTeamImageError() {
         container.appendChild(placeholder);
     }
     
-    this.style.display = 'none';
+    // Au lieu de masquer complètement, garder une faible opacité
+    this.style.opacity = '0.1';
+    this.style.filter = 'grayscale(100%)';
 }
 
 function optimizeTeamImages() {
+    console.log('optimizeTeamImages appelé, isMobile:', isMobile);
+    
     const teamCards = document.querySelectorAll('.team-card');
+    console.log(`Nombre de cartes d'équipe trouvées: ${teamCards.length}`);
+    
     if (!teamCards.length) return;
     
     teamCards.forEach((card, index) => {
-        const imgContainer = card.querySelector('.team-img-container');
-        if (!imgContainer) return;
+        console.log(`Optimisation carte ${index}...`);
         
-        // Réinitialiser les styles
+        const imgContainer = card.querySelector('.team-img-container');
+        if (!imgContainer) {
+            console.warn(`Carte ${index} n'a pas de conteneur d'image`);
+            return;
+        }
+        
+        // 1. S'assurer que la carte est visible
+        card.style.opacity = '1';
+        card.style.visibility = 'visible';
+        card.style.display = 'block';
+        
+        // 2. Réinitialiser les styles du conteneur (MAIS PAS l'opacité)
         imgContainer.style.cssText = '';
         imgContainer.className = 'team-img-container';
         
+        // 3. S'assurer que le conteneur est visible
+        imgContainer.style.opacity = '1';
+        imgContainer.style.visibility = 'visible';
+        imgContainer.style.display = 'block';
+        
         const img = imgContainer.querySelector('img');
         if (img) {
+            console.log(`Image trouvée dans carte ${index}, src:`, img.src);
+            
+            // 4. Réinitialiser l'image (MAIS GARDER L'OPACITÉ)
             img.className = 'team-img';
             
-            // FORCE LE CARRÉ ARRONDI - TOUTES LES TAILLES D'ÉCRAN
-            // 1. Conteneur carré
+            // FORCE LE CARRÉ ARRONDI - GRAND ET BIEN VISIBLE
+            // 1. Conteneur carré GRAND
             if (isMobile) {
-                // Sur mobile : carré de 160px avec arrondi de 20px
-                imgContainer.style.width = '160px';
-                imgContainer.style.height = '160px';
-                imgContainer.style.margin = '0 auto 20px auto';
-                imgContainer.style.borderRadius = '20px';
-                imgContainer.style.border = '3px solid var(--primary-soft, rgba(0, 123, 255, 0.1))';
-                imgContainer.style.overflow = 'hidden';
-                imgContainer.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.1)';
-            } else {
-                // Sur desktop : carré adaptatif avec arrondi de 15px
-                imgContainer.style.width = '100%';
-                imgContainer.style.height = '280px';
-                imgContainer.style.margin = '0 0 20px 0';
+                // Sur mobile : GRAND carré de 220px avec arrondi de 15px
+                imgContainer.style.width = '220px';
+                imgContainer.style.height = '220px';
+                imgContainer.style.margin = '0 auto 25px auto';
                 imgContainer.style.borderRadius = '15px';
+                imgContainer.style.border = '4px solid var(--primary-soft, rgba(0, 123, 255, 0.15))';
+                imgContainer.style.overflow = 'hidden';
+                imgContainer.style.boxShadow = '0 8px 25px rgba(0, 0, 0, 0.12)';
+                imgContainer.style.backgroundColor = 'var(--light-gray, #f8f9fa)';
+            } else {
+                // Sur desktop : TRÈS GRAND carré de 320px avec arrondi de 12px
+                imgContainer.style.width = '100%';
+                imgContainer.style.height = '320px'; // AUGMENTÉ
+                imgContainer.style.margin = '0 0 25px 0';
+                imgContainer.style.borderRadius = '12px';
                 imgContainer.style.border = 'none';
                 imgContainer.style.overflow = 'hidden';
-                imgContainer.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.08)';
+                imgContainer.style.boxShadow = '0 10px 30px rgba(0, 0, 0, 0.1)';
+                imgContainer.style.backgroundColor = 'var(--light-gray, #f8f9fa)';
             }
             
-            // 2. Image carrée arrondie
+            // 2. Image carrée arrondie - OPTIMISÉE POUR LA VISIBILITÉ
             img.style.objectFit = 'cover';
-            img.style.objectPosition = 'center';
+            img.style.objectPosition = 'center center'; // Position centrale optimale
             img.style.width = '100%';
             img.style.height = '100%';
-            img.style.borderRadius = isMobile ? '20px' : '15px';
+            img.style.borderRadius = isMobile ? '15px' : '12px';
+            img.style.opacity = '1'; // FORCE L'OPACITÉ À 1
+            img.style.visibility = 'visible';
+            img.style.display = 'block';
+            img.style.maxWidth = '100%';
+            img.style.maxHeight = '100%';
             
-            // 3. Chargement lazy si manquant
+            // 3. S'assurer que l'image est complètement chargée
+            if (img.complete && img.naturalHeight > 0) {
+                img.style.opacity = '1';
+                img.classList.add('loaded');
+            }
+            
+            // 4. Chargement lazy si manquant
             if (!img.hasAttribute('loading')) {
                 img.setAttribute('loading', 'lazy');
             }
+        } else {
+            console.warn(`Carte ${index} n'a pas d'image dans le conteneur`);
         }
         
-        // 4. Centrer le contenu sur mobile
+        // 5. Centrer le contenu sur mobile
         if (isMobile) {
             const teamInfo = card.querySelector('.team-info');
             const socialLinks = card.querySelector('.team-social');
             
             if (teamInfo) {
                 teamInfo.style.textAlign = 'center';
-                teamInfo.style.padding = '15px 10px';
+                teamInfo.style.padding = '20px 15px';
             }
             
             if (socialLinks) {
                 socialLinks.style.justifyContent = 'center';
-                socialLinks.style.marginTop = '15px';
+                socialLinks.style.marginTop = '20px';
             }
             
             // Centrer la carte entière sur mobile
             card.style.display = 'flex';
             card.style.flexDirection = 'column';
             card.style.alignItems = 'center';
-            card.style.maxWidth = '300px';
-            card.style.margin = '0 auto 30px auto';
+            card.style.maxWidth = '280px';
+            card.style.margin = '0 auto 40px auto';
         } else {
             // Réinitialiser pour desktop
             const teamInfo = card.querySelector('.team-info');
@@ -1017,7 +1102,7 @@ function optimizeTeamImages() {
             card.style.margin = '';
         }
         
-        // 5. Animation d'apparition
+        // 6. Ajouter une animation d'apparition progressive
         card.style.opacity = '0';
         card.style.transform = 'translateY(20px)';
         card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
@@ -1025,8 +1110,12 @@ function optimizeTeamImages() {
         setTimeout(() => {
             card.style.opacity = '1';
             card.style.transform = 'translateY(0)';
-        }, index * 100);
+        }, index * 150);
+        
+        console.log(`Carte ${index} optimisée avec succès`);
     });
+    
+    console.log('Optimisation des images d\'équipe terminée');
 }
 
 // =====================================================================
@@ -1213,6 +1302,7 @@ function initDonationForms() {
 // =====================================================================
 function checkMobileView() {
     isMobile = window.innerWidth <= 768;
+    console.log('checkMobileView: isMobile =', isMobile, 'window width =', window.innerWidth);
 }
 
 function setActiveNavLink() {
@@ -1431,29 +1521,41 @@ function showToast(message, type = 'success') {
 }
 
 // =====================================================================
-// AJOUT DES STYLES DYNAMIQUES POUR LES CARRÉS ARRONDIS
+// AJOUT DES STYLES DYNAMIQUES CORRIGÉS
 // =====================================================================
 function addDynamicStyles() {
     const style = document.createElement('style');
     style.textContent = `
-        /* ============ STYLES CARRÉS ARRONDIS POUR LES IMAGES D'ÉQUIPE ============ */
+        /* ============ STYLES CARRÉS ARRONDIS - GRAND ET VISIBLE ============ */
         
-        /* Conteneur de base */
-        .team-img-container {
-            position: relative;
-            background-color: var(--light-gray, #f5f5f5);
-            transition: all 0.3s ease;
+        /* FORCE LA VISIBILITÉ DE BASE */
+        .team-card,
+        .team-img-container,
+        .team-img {
+            opacity: 1 !important;
+            visibility: visible !important;
         }
         
-        /* Image de base */
+        /* Conteneur de base - GRAND */
+        .team-img-container {
+            position: relative;
+            background-color: var(--light-gray, #f8f9fa);
+            transition: all 0.3s ease;
+            opacity: 1 !important;
+            visibility: visible !important;
+        }
+        
+        /* Image de base - TOUJOURS VISIBLE */
         .team-img {
             display: block;
-            transition: transform 0.3s ease, opacity 0.3s ease;
-            opacity: 0;
+            transition: transform 0.3s ease, opacity 0.5s ease;
+            opacity: 1 !important;
+            visibility: visible !important;
+            will-change: opacity, transform;
         }
         
         .team-img.loaded {
-            opacity: 1;
+            opacity: 1 !important;
         }
         
         /* Placeholder pour images manquantes */
@@ -1473,6 +1575,7 @@ function addDynamicStyles() {
             text-align: center;
             z-index: 1;
             border-radius: inherit;
+            opacity: 1 !important;
         }
         
         .team-img-placeholder i {
@@ -1481,21 +1584,23 @@ function addDynamicStyles() {
             color: var(--primary, #007bff);
         }
         
-        /* ============ MOBILE : PETITS CARRÉS ARRONDIS ============ */
+        /* ============ MOBILE : TRÈS GRANDS CARRÉS ARRONDIS ============ */
         @media (max-width: 768px) {
             .team-img-container {
-                width: 160px !important;
-                height: 160px !important;
-                border-radius: 20px !important;
-                border: 3px solid var(--primary-soft, rgba(0, 123, 255, 0.1)) !important;
-                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1) !important;
-                margin: 0 auto 20px auto !important;
+                width: 220px !important;
+                height: 220px !important;
+                border-radius: 15px !important;
+                border: 4px solid var(--primary-soft, rgba(0, 123, 255, 0.15)) !important;
+                box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12) !important;
+                margin: 0 auto 25px auto !important;
+                background-color: var(--light-gray, #f8f9fa) !important;
             }
             
             .team-img {
-                border-radius: 20px !important;
+                border-radius: 15px !important;
                 object-fit: cover !important;
-                object-position: center !important;
+                object-position: center center !important;
+                opacity: 1 !important;
             }
             
             /* Centrer les cartes sur mobile */
@@ -1503,53 +1608,56 @@ function addDynamicStyles() {
                 display: flex !important;
                 flex-direction: column !important;
                 align-items: center !important;
-                max-width: 300px !important;
-                margin: 0 auto 30px auto !important;
+                max-width: 280px !important;
+                margin: 0 auto 40px auto !important;
+                opacity: 1 !important;
             }
             
             .team-info {
                 text-align: center !important;
-                padding: 15px 10px !important;
+                padding: 20px 15px !important;
             }
             
             .team-social {
                 justify-content: center !important;
-                margin-top: 15px !important;
+                margin-top: 20px !important;
             }
         }
         
-        /* ============ DESKTOP : GRANDS CARRÉS ARRONDIS ============ */
+        /* ============ DESKTOP : EXTRÊMEMENT GRANDS CARRÉS ARRONDIS ============ */
         @media (min-width: 769px) {
             .team-img-container {
                 width: 100% !important;
-                height: 280px !important;
-                border-radius: 15px !important;
-                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
-                margin: 0 0 20px 0 !important;
+                height: 320px !important; /* AUGMENTÉ */
+                border-radius: 12px !important;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1) !important;
+                margin: 0 0 25px 0 !important;
+                background-color: var(--light-gray, #f8f9fa) !important;
             }
             
             .team-img {
-                border-radius: 15px !important;
+                border-radius: 12px !important;
                 object-fit: cover !important;
-                object-position: center !important;
+                object-position: center center !important;
+                opacity: 1 !important;
             }
         }
         
-        /* ============ EFFETS D'INTERACTION ============ */
+        /* ============ EFFETS D'INTERACTION AMÉLIORÉS ============ */
         .team-card:hover .team-img-container {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            transform: translateY(-8px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
         }
         
         .team-card:hover .team-img {
-            transform: scale(1.05);
+            transform: scale(1.08);
         }
         
-        /* ============ ANIMATIONS ============ */
+        /* ============ ANIMATIONS RENFORCÉES ============ */
         .team-card {
-            opacity: 0;
-            transform: translateY(20px);
-            transition: opacity 0.5s ease, transform 0.5s ease;
+            opacity: 1 !important;
+            transform: translateY(0) !important;
+            transition: opacity 0.5s ease, transform 0.5s ease, box-shadow 0.3s ease !important;
         }
         
         /* ============ STYLES POUR LE CAROUSEL "À PROPOS" ============ */
@@ -1579,6 +1687,8 @@ function addDynamicStyles() {
             height: 100%;
             object-fit: cover;
             border-radius: 12px;
+            opacity: 1 !important;
+            transition: opacity 0.5s ease;
         }
         
         .about-carousel-indicators {
@@ -1614,6 +1724,12 @@ function addDynamicStyles() {
                 width: 10px;
                 height: 10px;
             }
+            
+            /* Ajustements supplémentaires pour très petits écrans */
+            .team-img-container {
+                width: 200px !important;
+                height: 200px !important;
+            }
         }
         
         @media (max-width: 576px) {
@@ -1622,13 +1738,20 @@ function addDynamicStyles() {
             }
             
             .team-img-container {
-                width: 140px !important;
-                height: 140px !important;
-                border-radius: 15px !important;
+                width: 180px !important;
+                height: 180px !important;
+                border-radius: 12px !important;
             }
             
             .team-img {
-                border-radius: 15px !important;
+                border-radius: 12px !important;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .team-img-container {
+                width: 160px !important;
+                height: 160px !important;
             }
         }
         
@@ -1667,11 +1790,12 @@ function addDynamicStyles() {
         }
         
         [data-theme="dark"] .team-img-container {
-            border-color: var(--dark-primary-soft, rgba(100, 181, 246, 0.2));
+            border-color: var(--dark-primary-soft, rgba(100, 181, 246, 0.25));
+            background-color: var(--dark-light-gray, #2a2a2a) !important;
         }
         
         [data-theme="dark"] .team-card:hover .team-img-container {
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
         }
     `;
     document.head.appendChild(style);
