@@ -29,14 +29,16 @@ def enregistrer_message(request):
                 motif=donnees.get('motif'),
                 message=donnees.get('message')
             )
-            nouveau_message.save()
+            # Pas besoin d'appeler .save() après .create()
 
             print(f"Étape 1 : Message de {nouveau_message.nom} enregistré en base.")
 
-            # B. ENVOI DU GMAIL DE NOTIFICATION (Le lien avec ton Gmail)
-            sujet_alerte = f"SITE ASBL : Nouveau message de {donnees.get('nom')}"
-            
-            corps_du_mail = f"""
+            # B. ENVOI DU GMAIL DE NOTIFICATION (séparé pour ne pas bloquer)
+            email_envoye = False
+            try:
+                sujet_alerte = f"SITE ASBL : Nouveau message de {donnees.get('nom')}"
+                
+                corps_du_mail = f"""
             Bonjour Zenon,
             
             Une nouvelle personne a contacté l'ASBL via le site :
@@ -53,19 +55,22 @@ def enregistrer_message(request):
             Ce message est également enregistré dans ton tableau de bord Django.
             """
 
-            send_mail(
-                sujet_alerte,
-                corps_du_mail,
-                settings.EMAIL_HOST_USER,  # L'expéditeur (ton compte Gmail)
-                ['uzimamzenon@gmail.com'], # Le destinataire (ton Gmail personnel)
-                fail_silently=False,      # Affiche l'erreur si le mail ne part pas
-            )
-            
-            print(f"Étape 2 : Email envoyé à {settings.EMAIL_HOST_USER}.")
+                send_mail(
+                    sujet_alerte,
+                    corps_du_mail,
+                    settings.EMAIL_HOST_USER,  # L'expéditeur (ton compte Gmail)
+                    ['uzimamzenon@gmail.com'], # Le destinataire (ton Gmail personnel)
+                    fail_silently=False,      # Affiche l'erreur si le mail ne part pas
+                )
+                email_envoye = True
+                print(f"Étape 2 : Email envoyé à {settings.EMAIL_HOST_USER}.")
+            except Exception as email_error:
+                print(f"ERREUR EMAIL (non bloquante) : {str(email_error)}")
 
             return JsonResponse({
                 "status": "success",
-                "message": "Félicitations Zenon, c'est enregistré et vous avez reçu un mail !"
+                "message": "Félicitations Zenon, c'est enregistré !",
+                "email_envoye": email_envoye
             }, status=201)
 
         except Exception as e:

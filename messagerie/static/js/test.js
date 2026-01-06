@@ -1281,7 +1281,7 @@ function initContactForm() {
 
             if (response.ok) {
                 const result = await response.json();
-                if (result.success) {
+                if (result.status === 'success' || result.success) {
                     showToast(`Merci ${name}, votre message a bien été enregistré !`, 'success');
                     contactForm.reset();
                 } else {
