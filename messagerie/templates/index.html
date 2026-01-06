@@ -920,6 +920,7 @@
                     <h3>Envoyez-nous un message</h3>
                     <!-- ICI : Vérifie bien que l'id est contactForm -->
                     <form id="contactForm">
+                        {% csrf_token %}
                         <!-- ICI : id="name" -->
                         <input type="text" id="name" class="form-control" required placeholder="Votre Nom">
 
