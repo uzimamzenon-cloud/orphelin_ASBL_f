@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from django.http import JsonResponse
 from .models import MessageContact, Newsletter
-from django.core.mail import EmailMessage
+from django.core.mail import EmailMessage, send_mail
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 import json
@@ -40,99 +40,77 @@ def send_email_background(sujet, corps, destinataire, reply_to):
 def enregistrer_message(request):
     if request.method == 'POST':
         try:
-            # Vérification basique du corps de la requête
-            if not request.body:
-                logger.warning("REQUÊTE VIDE: Tentative d'envoi sans données.")
-                return JsonResponse({
-                    "status": "error",
-                    "message": "Corps de la requête vide"
-                }, status=400)
+            # Parsing JSON avec sécurité
+            try:
+                data = json.loads(request.body)
+            except json.JSONDecodeError:
+                return JsonResponse({"status": "error", "message": "Données invalides"}, status=400)
             
-            # Parsing JSON
+            # 1. Vérification stricte des données (Nettoyage)
+            nom = data.get('nom', '').strip()
+            email = data.get('email', '').strip()
+            sujet_form = data.get('sujet', 'Pas de sujet').strip()
+            motif = data.get('motif', 'Information').strip()
+            message_texte = data.get('message', '').strip()
+
+            if not nom or not email or not message_texte:
+                return JsonResponse({"status": "error", "message": "Champs obligatoires manquants"}, status=400)
+
+            logger.info(f"NOUVEAU MESSAGE: De {nom} ({email})")
+
+            # 2. Sauvegarde immédiate en base de données (Prioritaire)
             try:
-                donnees = json.loads(request.body)
-            except json.JSONDecodeError as e:
-                logger.warning(f"JSON INVALIDE: {str(e)}")
-                return JsonResponse({
-                    "status": "error",
-                    "message": "Format des données invalide."
-                }, status=400)
+                nouveau_msg = MessageContact.objects.create(
+                    nom=nom, email=email, sujet=sujet_form, motif=motif, message=message_texte
+                )
+                logger.info(f"DB SUCCÈS: Message {nouveau_msg.id} sauvegardé.")
+            except Exception as db_err:
+                logger.critical(f"DB ERREUR: {str(db_err)}")
+                return JsonResponse({"status": "error", "message": "Erreur serveur (Base de données)"}, status=500)
+
+            # 3. Envoi de l'e-mail (Threadé pour la vitesse "Ultra-Rapide")
+            sujet_mail = f"Nouveau contact ASBL : {motif} - {nom}"
+            corps_mail = f"""
+            Vous avez reçu un nouveau message de votre site web :
             
-            logger.info(f"NOUVEAU MESSAGE REÇU: De {donnees.get('email')}")
+            Nom : {nom}
+            Email : {email}
+            Sujet : {sujet_form}
+            Motif : {motif}
+            
+            Message :
+            {message_texte}
+            ------------------------------------------------
+            Ce message est sécurisé dans votre base de données.
+            """
+            
+            def envoyer_mail_thread():
+                try:
+                    send_mail(
+                        sujet_mail,
+                        corps_mail,
+                        settings.EMAIL_HOST_USER, # Expéditeur
+                        ['uzimamzenon@gmail.com'], # Destinataire
+                        fail_silently=False,
+                    )
+                    logger.info("EMAIL SUCCÈS: Envoyé via Thread.")
+                except Exception as mail_err:
+                    logger.error(f"EMAIL ERREUR (Background): {str(mail_err)}")
 
-            # A. STOCKAGE BDD (Prioritaire)
-            try:
-                nouveau_message = MessageContact.objects.create(
-                    nom=donnees.get('nom'),
-                    email=donnees.get('email'),
-                    sujet=donnees.get('sujet'),
-                    motif=donnees.get('motif'),
-                    message=donnees.get('message')
-                )
-                logger.info(f"DB SUCCÈS: Message {nouveau_message.id} sauvegardé.")
-            except Exception as db_error:
-                logger.critical(f"DB ERREUR: Impossible de sauvegarder le message : {str(db_error)}")
-                return JsonResponse({
-                    "status": "error",
-                    "message": "Erreur technique lors de la sauvegarde. Veuillez réessayer."
-                }, status=500)
+            # Lancement du thread (Non-bloquant)
+            email_thread = threading.Thread(target=envoyer_mail_thread)
+            email_thread.daemon = True
+            email_thread.start()
 
-            # B. ENVOI EMAIL (Asynchrone / Non-bloquant)
-            # On tente d'envoyer l'email, mais on ne bloque JAMAIS la réponse utilisateur
-            try:
-                # On prépare le contenu
-                sujet_alerte = f"NOUVEAU CONTACT : {donnees.get('nom')}"
-                corps_du_mail = f"""
-                Bonjour Zenon,
-                
-                Un nouveau message a été reçu via le site web.
-                
-                DÉTAILS DU CONTACT :
-                --------------------
-                Nom     : {donnees.get('nom')}
-                Email   : {donnees.get('email')}
-                Sujet   : {donnees.get('sujet')}
-                Motif   : {donnees.get('motif')}
-                
-                MESSAGE :
-                ---------
-                {donnees.get('message')}
-                
-                --------------------
-                Note: Ce message est archivé dans la base de données Django.
-                """
-                
-                # Lancement du thread
-                admin_email = 'uzimamzenon@gmail.com' 
-                email_thread = threading.Thread(
-                    target=send_email_background,
-                    args=(sujet_alerte, corps_du_mail, admin_email, donnees.get('email'))
-                )
-                email_thread.daemon = True 
-                email_thread.start()
-                logger.info("THREAD: Thread d'email lancé avec succès.")
-
-            except Exception as email_thread_error:
-                # SI L'ENVOI D'EMAIL ECHOUE (Thread creation, variables...), ON LOGGUE MAIS ON ENVOIE SUCCES AU USER
-                # C'est vital pour que l'utilisateur ne pense pas que son message est perdu.
-                logger.error(f"ERREUR NON-BLOQUANTE (Email): {str(email_thread_error)}")
-                logger.error(traceback.format_exc())
-
-            # C. REPONSE AU CLIENT (Toujours succès si DB OK)
+            # Réponse immédiate
             return JsonResponse({
                 "status": "success",
-                "message": "Message envoyé avec succès !",
-                "email_envoye": "background"
+                "message": f"Merci {nom}, votre message a été enregistré et l'équipe a été prévenue !"
             }, status=201)
 
         except Exception as e:
-            # Gestion globale des erreurs (Uniquement si DB plante vraiment et n'est pas catchée avant)
-            logger.error(f"ERREUR CRITIQUE VUE CONTACT: {str(e)}")
-            logger.error(traceback.format_exc())
-            return JsonResponse({
-                "status": "error",
-                "message": "Une erreur interne est survenue, mais votre message a peut-être été enregistré."
-            }, status=500)
+            logger.error(f"ERREUR GLOBALE: {str(e)}")
+            return JsonResponse({"status": "error", "message": "Erreur inattendue"}, status=500)
             
     return JsonResponse({"message": "Méthode non autorisée"}, status=405)
 

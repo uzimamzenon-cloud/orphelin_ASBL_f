@@ -146,10 +146,13 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'uzimamzenon@gmail.com'
-# Rappel : Surtout ne mets pas ton code Gmail en PUBLIC sur GitHub !
-EMAIL_HOST_PASSWORD = 'dktj wksi qcpk lewn' 
-DEFAULT_FROM_EMAIL = 'uzimamzenon@gmail.com'
+
+# Utilisation de variables d'environnement pour la sécurité (avec valeurs par défaut pour le dev)
+import os
+EMAIL_HOST_USER = os.environ.get('EMAIL_USER', 'uzimamzenon@gmail.com')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_PASSWORD', 'dktj wksi qcpk lewn') 
+
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 EMAIL_TIMEOUT = 10 
 
 # --- LOGGING PROFESSIONNEL (Pour voir les erreurs sur Render) ---
