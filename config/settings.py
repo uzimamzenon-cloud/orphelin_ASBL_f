@@ -150,5 +150,6 @@ EMAIL_HOST_USER = 'uzimamzenon@gmail.com'
 # Rappel : Surtout ne mets pas ton code Gmail en PUBLIC sur GitHub !
 EMAIL_HOST_PASSWORD = 'dktj wksi qcpk lewn' 
 DEFAULT_FROM_EMAIL = 'uzimamzenon@gmail.com'
+EMAIL_TIMEOUT = 10  # Timeout en secondes pour éviter que ça mouline à l'infini
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
