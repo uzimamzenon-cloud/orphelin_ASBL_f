@@ -1,7 +1,7 @@
 // =====================================================================
 // VARIABLES GLOBALES
 // =====================================================================
-const API_BASE_URL = 'http://127.0.0.1:8000'; // Django default port
+const API_BASE_URL =  window.location.origin; // Django default port
 
 let preloader, header, mobileMenuBtn, navMenu, navLinks, dropdowns, backToTopBtn;
 let donationModal, modalClose, galleryModal, galleryModalClose, galleryModalImg, galleryModalCaption;
@@ -1258,7 +1258,7 @@ function initContactForm() {
         console.log('Formulaire de contact non trouvé');
         return;
     }
-
+    console.log('🔗 URL de base détectée:', API_BASE_URL); // AJOUTE CETTE LIGNE
     console.log('Initialisation du formulaire de contact...');
 
     // Ajouter un token CSRF s'il n'existe pas

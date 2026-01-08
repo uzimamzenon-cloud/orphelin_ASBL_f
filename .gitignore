@@ -1,6 +1,28 @@
-monev/
-*.pyc
+# .gitignore
+.env
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Django
 db.sqlite3
+*.log
+media/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
 .DS_Store
-staticfiles/
+Thumbs.db
